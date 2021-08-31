@@ -1,0 +1,39 @@
+{
+  "name": "@omersalkanovic/nestjs-dynamodb",
+  "version": "0.3.4",
+  "description": "NestJS DynamoDB Client - Fork ",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "npm run build",
+    "publish": "npm publish --access public"
+  },
+  "author": "Omer Salkanovic <osalkanovic5@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "babel-eslint": "^10.0.3",
+    "eslint": "^6.8.0",
+    "eslint-config-prettier": "^6.9.0",
+    "eslint-config-rokket-labs": "^0.1.4",
+    "eslint-plugin-import": "^2.20.0",
+    "eslint-plugin-prettier": "^3.1.2",
+    "typescript": "^3.8.2"
+  },
+  "peerDependencies": {
+    "@aws/dynamodb-data-mapper": "^0.7.3",
+    "@aws/dynamodb-data-mapper-annotations": "^0.7.3",
+    "@aws/dynamodb-data-marshaller": "^0.7.3",
+    "@nestjs/common": "^7.6.13"
+  },
+  "dependencies": {
+    "@aws/dynamodb-data-mapper": "^0.7.3",
+    "@aws/dynamodb-data-mapper-annotations": "^0.7.3",
+    "@aws/dynamodb-data-marshaller": "^0.7.3",
+    "@nestjs/common": "^7.6.13",
+    "aws-sdk": "^2.624.0",
+    "is-class": "^0.0.9",
+    "reflect-metadata": "^0.1.13"
+  }
+}
