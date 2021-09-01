@@ -140,7 +140,7 @@ export class GetModelForClass<T extends instanceOfDynamoDBClass> {
               `${this.table.charAt(0).toUpperCase() + this.table.slice(1)}Index`
             ] === 'HASH'
               ? {
-                  KeyConditionExpression: 'category = :categoryValue',
+                  KeyConditionExpression: `${key} = :${key}Value`,
                   ScanIndexForward: false,
                 }
               : {
