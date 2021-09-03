@@ -73,149 +73,191 @@ export class GetModelForClass<T extends instanceOfDynamoDBClass> {
     return this.mapper.put(toSave)
   }
 
-  async find(input?: Partial<DynamoDBClass>, options?: any): Promise<T[]> {
-    let results: T[] = []
+  parseObject = (input, options): any => {
     const keys = Object.keys(input)
+
+    let obj: any = {
+      TableName: this.table,
+      FilterExpression: '',
+      IndexName: `${
+        this.table.charAt(0).toUpperCase() + this.table.slice(1)
+      }Index`,
+    }
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      if (Array.isArray(input[key])) {
+        for (let j = 0; j < input[key].length; j++) {
+          obj = {
+            ...obj,
+            ExpressionAttributeValues: {
+              ...obj.ExpressionAttributeValues,
+              [`:${key}Value${j}`]: {
+                [this.getValueType(this.clearValue(input[key][j]))]:
+                  input[key][j],
+              },
+            },
+          }
+        }
+        //TODO run function for contains
+        obj = {
+          ...obj,
+          FilterExpression: `${obj.FilterExpression} ${this.checkCondition(
+            input[key],
+          )} ${this.generateValue(input[key], key)}`,
+        }
+      } else if (this.schema[key].type === 'Collection') {
+        obj = {
+          ...obj,
+          ExpressionAttributeValues: {
+            ...obj.ExpressionAttributeValues,
+            [`:${key}Value`]: {
+              [this.getValueType(input[key])]: this.clearValue(input[key]),
+            },
+          },
+          FilterExpression: `${obj.FilterExpression} ${this.checkCondition(
+            input[key],
+          )} contains(${key}, :${key}Value)`,
+        }
+      } else {
+        //there
+        obj = {
+          ...obj,
+          ...(this.schema[key].indexKeyConfigurations &&
+          this.schema[key].indexKeyConfigurations[
+            `${this.table.charAt(0).toUpperCase() + this.table.slice(1)}Index`
+          ] === 'HASH'
+            ? {
+                KeyConditionExpression: `${key} = :${key}Value`,
+                ScanIndexForward: false,
+              }
+            : {
+                FilterExpression: `${
+                  obj.FilterExpression
+                } ${this.checkCondition(input[key])} ${this.generateCondition(
+                  key,
+                  input[key],
+                )}`,
+              }),
+          ExpressionAttributeValues: {
+            ...obj.ExpressionAttributeValues,
+            [`:${key}Value`]: {
+              [this.getValueType(input[key])]: this.clearValue(input[key]),
+            },
+          },
+        }
+      }
+    }
+
+    obj.FilterExpression = obj.FilterExpression.split(' ').splice(2).join(' ')
+
+    if (options?.limit) {
+      obj = { ...obj, Limit: options?.limit }
+    }
+    if (options?.pageSize) {
+      obj = { ...obj, PageSize: options?.pageSize }
+    }
+    if (options?.lastEvaluatedKey) {
+      obj = { ...obj, ExclusiveStartKey: options?.lastEvaluatedKey }
+    }
+
+    for (const key in obj) {
+      if (
+        (typeof obj[key] === 'string' || obj[key] instanceof String) &&
+        obj[key].trim() === ''
+      ) {
+        obj[key] = undefined
+      }
+    }
+
+    return obj
+  }
+
+  async fetchItems(parsedObj): Promise<DynamoDB.QueryOutput> {
+    const result: DynamoDB.QueryOutput = await new Promise(
+      (resolve, reject) => {
+        if ('KeyConditionExpression' in parsedObj) {
+          return this.dynamoDBClient.query(parsedObj, (err, data) => {
+            if (err) reject(err)
+            resolve(data)
+          })
+        } else {
+          return this.dynamoDBClient.scan(parsedObj, (err, data) => {
+            if (err) reject(err)
+            resolve(data)
+          })
+        }
+      },
+    )
+    return result
+  }
+
+  async find(input?: Partial<DynamoDBClass>, options: any = {}): Promise<T[]> {
     // if (!input || JSON.stringify(input) === JSON.stringify({})) {
     //   for await (const item of this.mapper.scan(this.dynamoDBClass)) {
     //     results.push(item)
     //   }
     // } else if (
     //   keys.includes(this.hashKey) ||
-    //   (keys.includes(this.hashKey) && keys.includes(this.rangeKey))
+    //   (keys.includes(this.hashKey) && keys. includes(this.rangeKey))
     // ) {
     //   for await (const item of this.mapper.query(this.dynamoDBClass, input)) {
     //     results.push(item)
     //   }
     // } else {
-    let parseObject = (): any => {
-      let obj: any = {
-        TableName: this.table,
-        FilterExpression: '',
-        IndexName: `${
-          this.table.charAt(0).toUpperCase() + this.table.slice(1)
-        }Index`,
-      }
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i]
-        if (Array.isArray(input[key])) {
-          for (let j = 0; j < input[key].length; j++) {
-            obj = {
-              ...obj,
-              ExpressionAttributeValues: {
-                ...obj.ExpressionAttributeValues,
-                [`:${key}Value${j}`]: {
-                  [this.getValueType(this.clearValue(input[key][j]))]:
-                    input[key][j],
-                },
-              },
-            }
-          }
-          //TODO run function for contains
-          obj = {
-            ...obj,
-            FilterExpression: `${obj.FilterExpression} ${this.checkCondition(
-              input[key],
-            )} ${this.generateValue(input[key], key)}`,
-          }
-        } else if (this.schema[key].type === 'Collection') {
-          obj = {
-            ...obj,
-            ExpressionAttributeValues: {
-              ...obj.ExpressionAttributeValues,
-              [`:${key}Value`]: {
-                [this.getValueType(input[key])]: this.clearValue(input[key]),
-              },
-            },
-            FilterExpression: `${obj.FilterExpression} ${this.checkCondition(
-              input[key],
-            )} contains(${key}, :${key}Value)`,
-          }
-        } else {
-          //there
-          obj = {
-            ...obj,
-            ...(this.schema[key].indexKeyConfigurations &&
-            this.schema[key].indexKeyConfigurations[
-              `${this.table.charAt(0).toUpperCase() + this.table.slice(1)}Index`
-            ] === 'HASH'
-              ? {
-                  KeyConditionExpression: `${key} = :${key}Value`,
-                  ScanIndexForward: false,
-                }
-              : {
-                  FilterExpression: `${
-                    obj.FilterExpression
-                  } ${this.checkCondition(input[key])} ${this.generateCondition(
-                    key,
-                    input[key],
-                  )}`,
-                }),
-            ExpressionAttributeValues: {
-              ...obj.ExpressionAttributeValues,
-              [`:${key}Value`]: {
-                [this.getValueType(input[key])]: this.clearValue(input[key]),
-              },
-            },
-          }
-        }
-      }
+    const parsedObj = this.parseObject(input, options)
+    let lastKey = null
+    const result = await this.fetchItems(parsedObj)
+    const items = result.Items
+    lastKey = result.LastEvaluatedKey
 
-      obj.FilterExpression = obj.FilterExpression.split(' ').splice(2).join(' ')
+    const count = options.count ?? 50
+    while (lastKey && items?.length < count) {
+      parsedObj.ExclusiveStartKey = lastKey
+      const newResult: DynamoDB.QueryOutput = await this.fetchItems(parsedObj)
+      const newItems = newResult.Items
+      lastKey = newResult.LastEvaluatedKey
 
-      if (options?.limit) {
-        obj = { ...obj, Limit: options?.limit }
-      }
-      if (options?.pageSize) {
-        obj = { ...obj, PageSize: options?.pageSize }
-      }
-      if (options?.lastEvaluatedKey) {
-        obj = { ...obj, LastEvaluatedKey: options?.lastEvaluatedKey }
-      }
-
-      return obj
+      items.push(...newItems)
     }
 
-    const parsedObj = parseObject()
-    for (const key in parsedObj) {
-      if (
-        (typeof parsedObj[key] === 'string' ||
-          parsedObj[key] instanceof String) &&
-        parsedObj[key].trim() === ''
-      ) {
-        parsedObj[key] = undefined
-      }
-    }
-
-    const items: DynamoDB.ItemList = await new Promise((resolve, reject) => {
-      if ('KeyConditionExpression' in parsedObj) {
-        return this.dynamoDBClient.query(parsedObj, (err, data) => {
-          if (err) reject(err)
-          // console.log('DATA', data)
-          resolve(data?.Items)
-        })
-      } else {
-        return this.dynamoDBClient.scan(parsedObj, (err, data) => {
-          if (err) reject(err)
-          // console.log('DATA', data)
-          resolve(data.Items)
-        })
-      }
-    })
-
-    return items.map(item => unmarshallItem(this.schema, item))
+    return items.slice(0, count).map(item => unmarshallItem(this.schema, item))
     // }
   }
+
+  async findOne(input?: Partial<DynamoDBClass>, options?: any): Promise<T[]> {
+    const parsedObj = this.parseObject(input, options)
+    let lastKey = null
+    const result = await this.fetchItems(parsedObj)
+    const items = result.Items
+    lastKey = result.LastEvaluatedKey
+
+    while (lastKey && (!items?.length || !items)) {
+      parsedObj.ExclusiveStartKey = lastKey
+      const newResult: DynamoDB.QueryOutput = await this.fetchItems(parsedObj)
+      const newItems = newResult.Items
+      lastKey = newResult.LastEvaluatedKey
+      items.push(...newItems)
+    }
+
+    return items.map(item => unmarshallItem(this.schema, item))
+  }
+
   generateCondition(key, value) {
     if (value.indexOf('LIKE') > -1) {
       return `contains(${key}, :${key}Value)`
+    } else if (value.indexOf('STARTSWITH') > -1) {
+      return `begins_with(${key}, :${key}Value)`
     } else {
       return `${key} = :${key}Value`
     }
   }
 
   clearValue(value) {
-    return value.replace(/AND /g, '').replace(/OR /g, '').replace(/LIKE /g, '')
+    return value
+      .replace(/AND /g, '')
+      .replace(/OR /g, '')
+      .replace(/LIKE /g, '')
+      .replace(/STARTSWITH /g, '')
   }
   generateValue(value, attr) {
     if (Array.isArray(value)) {

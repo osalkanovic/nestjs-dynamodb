@@ -13,3 +13,7 @@ export function gratherThanOrEqual(value): string {
 export function Like(value): string {
   return `LIKE ${value}`
 }
+
+export function BeginsWith(value: string): string {
+  return `STARTSWITH ${value}`
+}
