@@ -205,11 +205,13 @@ export class GetModelForClass<T extends instanceOfDynamoDBClass> {
     //   }
     // } else {
     const parsedObj = this.parseObject(input, options)
+    console.log('parsed', parsedObj)
     let lastKey = null
     const result = await this.fetchItems(parsedObj)
     const items = result.Items
     lastKey = result.LastEvaluatedKey
 
+    console.log('dynamo', lastKey)
     const count = options.count ?? 50
     while (lastKey && items?.length < count) {
       parsedObj.ExclusiveStartKey = lastKey
@@ -239,7 +241,7 @@ export class GetModelForClass<T extends instanceOfDynamoDBClass> {
       items.push(...newItems)
     }
 
-    return items.map(item => unmarshallItem(this.schema, item))
+    return items.slice(0, 1).map(item => unmarshallItem(this.schema, item))
   }
 
   generateCondition(key, value) {
