@@ -1,6 +1,6 @@
 {
   "name": "@omersalkanovic/nestjs-dynamodb",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "NestJS DynamoDB Client - Fork ",
   "main": "dist/index.js",
   "scripts": {
@@ -25,7 +25,9 @@
     "@aws/dynamodb-data-mapper": "^0.7.3",
     "@aws/dynamodb-data-mapper-annotations": "^0.7.3",
     "@aws/dynamodb-data-marshaller": "^0.7.3",
-    "@nestjs/common": "^7.6.13"
+    "@nestjs/common": "^7.6.13",
+    "rxjs": "^7.3.0"
+
   },
   "dependencies": {
     "@aws/dynamodb-data-mapper": "^0.7.3",
