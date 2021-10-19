@@ -68,6 +68,22 @@ export class GetModelForClass<T extends instanceOfDynamoDBClass> {
     //TODO
     return ''
   }
+
+  async batchCreate(input: Partial<T>[]): Promise<any[]> {
+    const toSave = []
+
+    for (const i of input) {
+      toSave.push(Object.assign(new this.dynamoDBClass(), i))
+    }
+
+    const allItems = []
+    for await (const persisted of this.mapper.batchPut(toSave)) {
+      allItems.push(persisted)
+      // items will be yielded as they are successfully written
+    }
+    return allItems
+  }
+
   async create(input: Partial<T>): Promise<T> {
     const toSave = Object.assign(new this.dynamoDBClass(), input)
     return this.mapper.put(toSave)
